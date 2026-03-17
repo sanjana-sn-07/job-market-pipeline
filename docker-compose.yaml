@@ -66,6 +66,13 @@ x-airflow-common:
     # See https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/check-health.html#scheduler-health-check-server
     # yamllint enable rule:line-length
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    DB_HOST: "project-db"
+    DB_PORT: "5432"
+    DB_NAME: "job_market"
+    DB_USER: "pipeline_user"
+    DB_PASSWORD: "pipeline_pass"
+    USAJOBS_API_KEY: ${USAJOBS_API_KEY}
+    USAJOBS_EMAIL: ${USAJOBS_EMAIL}
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}

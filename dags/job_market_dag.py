@@ -21,9 +21,13 @@ with DAG(
 ) as dag:
 
     def ingest_and_store():
-        jobs = pull_from_usajobs(keyword="data engineer", results_per_page=100)
-        insert_jobs(jobs)
-        print(f"Pipeline complete — processed {len(jobs)} jobs")
+        keywords = ["data engineer", "data analyst"]
+        total = 0
+        for keyword in keywords:
+            jobs = pull_from_usajobs(keyword=keyword, results_per_page=25)
+            insert_jobs(jobs)
+            total += len(jobs)
+        print(f"Pipeline complete — processed {total} jobs across {len(keywords)} keywords")
 
     run_pipeline = PythonOperator(
         task_id='ingest_usajobs',

@@ -1,17 +1,20 @@
 import requests
 import psycopg2
 import psycopg2.extras
-from datetime import datetime
+import logging
+import os
 
-USAJOBS_API_KEY = "AQJG5zfmh58XnkO2cE34okB/Y05rTQIf2pN6BcDs4x0="
-USAJOBS_EMAIL   = "sanjana.sn.07@gmail.com"
+logger = logging.getLogger(__name__)
+
+USAJOBS_API_KEY = os.environ.get("USAJOBS_API_KEY", "")
+USAJOBS_EMAIL   = os.environ.get("USAJOBS_EMAIL", "")
 
 DB_CONFIG = {
-    "host":     "project-db",
-    "port":     5432,
-    "dbname":   "job_market",
-    "user":     "pipeline_user",
-    "password": "pipeline_pass"
+    "host":     os.environ.get("DB_HOST", "project-db"),
+    "port":     int(os.environ.get("DB_PORT", 5432)),
+    "dbname":   os.environ.get("DB_NAME", "job_market"),
+    "user":     os.environ.get("DB_USER", "pipeline_user"),
+    "password": os.environ.get("DB_PASSWORD", "")
 }
 
 
@@ -30,22 +33,42 @@ def pull_from_usajobs(keyword="data engineer", results_per_page=100):
         "Fields":         "min"
     }
 
-    response = requests.get(url, headers=headers, params=params)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        logger.error("USAJobs API timed out after 30 seconds")
+        raise
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"USAJobs API returned error: {e.response.status_code}")
+        raise
+    except requests.exceptions.ConnectionError:
+        logger.error("Could not connect to USAJobs API — network issue")
+        raise
 
-    if response.status_code != 200:
-        print(f"Error: {response.status_code} — {response.text}")
-        return []
+    try:
+        data = response.json()
+        jobs = data["SearchResult"]["SearchResultItems"]
+    except (KeyError, ValueError) as e:
+        logger.error(f"Unexpected API response format: {e}")
+        raise
 
-    data = response.json()
-    jobs = data["SearchResult"]["SearchResultItems"]
-    print(f"Pulled {len(jobs)} jobs from USAJobs")
+    logger.info(f"Pulled {len(jobs)} jobs from USAJobs for keyword: {keyword}")
     return jobs
 
 
 def insert_jobs(jobs):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cursor = conn.cursor()
+    if not jobs:
+        logger.warning("No jobs to insert — skipping database write")
+        return
 
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+    except psycopg2.OperationalError as e:
+        logger.error(f"Could not connect to database: {e}")
+        raise
+
+    cursor  = conn.cursor()
     inserted = 0
     skipped  = 0
 
@@ -58,6 +81,11 @@ def insert_jobs(jobs):
         location    = position.get("PositionLocationDisplay", "")
         description = position.get("UserArea", {}).get("Details", {}).get("JobSummary", "")
 
+        if not job_id:
+            logger.warning(f"Skipping job with no ID: {title}")
+            skipped += 1
+            continue
+
         try:
             cursor.execute("""
                 INSERT INTO raw_jobs (job_id, title, company, location, description, source, raw_json)
@@ -67,14 +95,14 @@ def insert_jobs(jobs):
                   psycopg2.extras.Json(position)))
             inserted += 1
         except Exception as e:
-            print(f"Skipping job {job_id}: {e}")
+            logger.warning(f"Skipping job {job_id}: {e}")
             skipped += 1
 
     conn.commit()
     cursor.close()
     conn.close()
 
-    print(f"Inserted: {inserted} | Skipped (duplicates): {skipped}")
+    logger.info(f"Done — Inserted: {inserted} | Skipped (duplicates): {skipped}")
 
 
 if __name__ == "__main__":
