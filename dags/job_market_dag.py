@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 from ingest import pull_from_usajobs, insert_jobs
+from clean import clean_and_store
 
 default_args = {
     'owner':            'sanjana',
@@ -13,7 +14,7 @@ default_args = {
 with DAG(
     dag_id='job_market_pipeline',
     default_args=default_args,
-    description='Daily ingestion of job postings from USAJobs API',
+    description='Daily ingestion and cleaning of job postings from USAJobs API',
     schedule_interval='@daily',
     start_date=datetime(2026, 3, 16),
     catchup=False,
@@ -27,9 +28,16 @@ with DAG(
             jobs = pull_from_usajobs(keyword=keyword, results_per_page=25)
             insert_jobs(jobs)
             total += len(jobs)
-        print(f"Pipeline complete — processed {total} jobs across {len(keywords)} keywords")
+        print(f"Ingestion complete — processed {total} jobs across {len(keywords)} keywords")
 
-    run_pipeline = PythonOperator(
+    ingest_task = PythonOperator(
         task_id='ingest_usajobs',
         python_callable=ingest_and_store,
     )
+
+    clean_task = PythonOperator(
+        task_id='clean_jobs',
+        python_callable=clean_and_store,
+    )
+
+    ingest_task >> clean_task
