@@ -30,7 +30,6 @@ def pull_from_usajobs(keyword="data engineer", results_per_page=100):
     params = {
         "Keyword":        keyword,
         "ResultsPerPage": results_per_page,
-        "Fields":         "min"
     }
 
     try:
@@ -79,7 +78,19 @@ def insert_jobs(jobs):
         title       = position.get("PositionTitle", "")
         company     = position.get("OrganizationName", "")
         location    = position.get("PositionLocationDisplay", "")
-        description = position.get("UserArea", {}).get("Details", {}).get("JobSummary", "")
+        details = position.get("UserArea", {}).get("Details", {})
+
+        def to_str(val):
+            if isinstance(val, list):
+                return " ".join(str(v) for v in val)
+            return val or ""
+
+        description = " ".join(filter(None, [
+            to_str(details.get("JobSummary")),
+            to_str(details.get("MajorDuties")),
+            to_str(details.get("Requirements")),
+            to_str(details.get("Evaluations")),
+        ]))
 
         if not job_id:
             logger.warning(f"Skipping job with no ID: {title}")

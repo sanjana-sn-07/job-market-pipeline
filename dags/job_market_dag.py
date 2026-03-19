@@ -3,6 +3,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 from ingest import pull_from_usajobs, insert_jobs
 from clean import clean_and_store
+from extract_skills import extract_and_store
 
 default_args = {
     'owner':            'sanjana',
@@ -40,4 +41,9 @@ with DAG(
         python_callable=clean_and_store,
     )
 
-    ingest_task >> clean_task
+    skills_task = PythonOperator(
+        task_id='extract_skills',
+        python_callable=extract_and_store,
+    )
+
+    ingest_task >> clean_task >> skills_task
