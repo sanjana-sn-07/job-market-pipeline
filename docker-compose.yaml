@@ -73,6 +73,8 @@ x-airflow-common:
     DB_PASSWORD: "pipeline_pass"
     USAJOBS_API_KEY: ${USAJOBS_API_KEY}
     USAJOBS_EMAIL: ${USAJOBS_EMAIL}
+    ADZUNA_APP_ID: ${ADZUNA_APP_ID}
+    ADZUNA_APP_KEY: ${ADZUNA_APP_KEY}
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
