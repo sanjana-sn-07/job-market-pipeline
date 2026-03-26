@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: int_jobs_cleaned
+    description: "Jobs enriched with seniority level, work type, and salary flags"
+    columns:
+      - name: job_id
+        description: "Unique identifier for each job posting"
+        tests:
+          - unique
+          - not_null
+
+      - name: seniority_level
+        description: "Classified seniority: Senior, Junior, Manager, Mid-Level"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["Senior", "Junior", "Manager", "Mid-Level"]
+
+      - name: work_type
+        description: "Classified work arrangement: Remote, Hybrid, Onsite"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["Remote", "Hybrid", "Onsite"]
+
+  - name: int_skills_extracted
+    description: "One row per skill per job, joined with job context"
+    columns:
+      - name: job_id
+        description: "Job identifier"
+        tests:
+          - not_null
+
+      - name: skill
+        description: "Extracted skill tag"
+        tests:
+          - not_null

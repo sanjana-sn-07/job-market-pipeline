@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: mart_skill_trends
+    description: "Weekly skill demand counts ranked by frequency"
+    columns:
+      - name: skill
+        description: "The skill being tracked"
+        tests:
+          - not_null
+
+      - name: job_count
+        description: "Number of jobs mentioning this skill in the given week"
+        tests:
+          - not_null
+
+      - name: week_start
+        description: "Monday of the week this data covers"
+        tests:
+          - not_null
+
+      - name: skill_rank
+        description: "Rank of this skill within its week (1 = most mentioned)"
+        tests:
+          - not_null

@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: stg_jobs
+    description: "Cleaned and renamed job postings from all sources"
+    columns:
+      - name: job_id
+        description: "Unique identifier for each job posting"
+        tests:
+          - unique
+          - not_null
+
+      - name: job_title
+        description: "Normalized job title"
+        tests:
+          - not_null
+
+      - name: job_description
+        description: "Clean job description with HTML stripped"
+        tests:
+          - not_null
+
+      - name: data_source
+        description: "Source of the job posting"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["usajobs", "adzuna"]
