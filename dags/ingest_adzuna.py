@@ -3,6 +3,7 @@ import psycopg2
 import psycopg2.extras
 import logging
 import os
+from rds_config import RDS_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,8 @@ DB_CONFIG = {
     "user":     os.environ.get("DB_USER", "pipeline_user"),
     "password": os.environ.get("DB_PASSWORD", "")
 }
+
+CONFIGS = [DB_CONFIG, RDS_CONFIG]
 
 
 def pull_from_adzuna(keyword="data engineer", results_per_page=25):
@@ -58,10 +61,15 @@ def insert_adzuna_jobs(jobs):
         logger.warning("No Adzuna jobs to insert")
         return
 
+    for config in CONFIGS:
+        _insert_to_db(jobs, config)
+
+
+def _insert_to_db(jobs, config):
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**config)
     except psycopg2.OperationalError as e:
-        logger.error(f"Could not connect to database: {e}")
+        logger.error(f"Could not connect to database {config['host']}: {e}")
         raise
 
     cursor  = conn.cursor()

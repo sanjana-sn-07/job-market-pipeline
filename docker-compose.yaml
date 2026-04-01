@@ -79,6 +79,11 @@ x-airflow-common:
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     AWS_BUCKET_NAME: ${AWS_BUCKET_NAME}
     AWS_REGION: ${AWS_REGION}
+    RDS_HOST: ${RDS_HOST}
+    RDS_PORT: ${RDS_PORT}
+    RDS_NAME: ${RDS_NAME}
+    RDS_USER: ${RDS_USER}
+    RDS_PASSWORD: ${RDS_PASSWORD}
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}

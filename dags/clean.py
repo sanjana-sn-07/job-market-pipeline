@@ -3,6 +3,7 @@ import psycopg2
 import psycopg2.extras
 import logging
 import os
+from rds_config import RDS_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,8 @@ DB_CONFIG = {
     "user":     os.environ.get("DB_USER", "pipeline_user"),
     "password": os.environ.get("DB_PASSWORD", "")
 }
+
+CONFIGS = [DB_CONFIG, RDS_CONFIG]
 
 TITLE_REPLACEMENTS = [
     (r"\bSr\.?\b",     "Senior"),
@@ -49,10 +52,15 @@ def normalize_title(title):
 
 
 def clean_and_store():
+    for config in CONFIGS:
+        _clean_for_db(config)
+
+
+def _clean_for_db(config):
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**config)
     except psycopg2.OperationalError as e:
-        logger.error(f"Could not connect to database: {e}")
+        logger.error(f"Could not connect to database {config['host']}: {e}")
         raise
 
     cursor = conn.cursor()
@@ -65,7 +73,7 @@ def clean_and_store():
     raw_jobs = cursor.fetchall()
 
     if not raw_jobs:
-        logger.info("No new jobs to clean — processed_jobs is already up to date")
+        logger.info(f"No new jobs to clean on {config['host']}")
         cursor.close()
         conn.close()
         return
@@ -90,7 +98,7 @@ def clean_and_store():
     cursor.close()
     conn.close()
 
-    logger.info(f"Cleaned and stored {inserted} new jobs into processed_jobs")
+    logger.info(f"Cleaned and stored {inserted} new jobs on {config['host']}")
 
 
 if __name__ == "__main__":

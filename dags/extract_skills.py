@@ -2,6 +2,7 @@ import psycopg2
 import logging
 import os
 import re
+from rds_config import RDS_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,8 @@ DB_CONFIG = {
     "user":     os.environ.get("DB_USER", "pipeline_user"),
     "password": os.environ.get("DB_PASSWORD", "")
 }
+
+CONFIGS = [DB_CONFIG, RDS_CONFIG]
 
 SKILLS = [
     # Languages
@@ -47,10 +50,15 @@ def extract_skills_from_text(text):
 
 
 def extract_and_store():
+    for config in CONFIGS:
+        _extract_for_db(config)
+
+
+def _extract_for_db(config):
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**config)
     except psycopg2.OperationalError as e:
-        logger.error(f"Could not connect to database: {e}")
+        logger.error(f"Could not connect to database {config['host']}: {e}")
         raise
 
     cursor = conn.cursor()
@@ -65,7 +73,7 @@ def extract_and_store():
     jobs = cursor.fetchall()
 
     if not jobs:
-        logger.info("No new jobs to extract skills from")
+        logger.info(f"No new jobs to extract skills from on {config['host']}")
         cursor.close()
         conn.close()
         return
@@ -88,7 +96,7 @@ def extract_and_store():
     cursor.close()
     conn.close()
 
-    logger.info(f"Extracted {total_skills} skill tags from {len(jobs)} jobs")
+    logger.info(f"Extracted {total_skills} skill tags from {len(jobs)} jobs on {config['host']}")
 
 
 if __name__ == "__main__":
