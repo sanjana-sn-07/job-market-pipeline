@@ -5,6 +5,7 @@ from ingest import pull_from_usajobs, insert_jobs
 from ingest_adzuna import pull_from_adzuna, insert_adzuna_jobs
 from clean import clean_and_store
 from extract_skills import extract_and_store
+from extract_skills_llm import extract_llm_skills_and_store
 from upload_to_s3 import upload_processed_jobs_to_s3
 
 default_args = {
@@ -62,9 +63,14 @@ with DAG(
         python_callable=extract_and_store,
     )
 
+    llm_skills_task = PythonOperator(
+        task_id='extract_skills_llm',
+        python_callable=extract_llm_skills_and_store,
+    )
+
     s3_task = PythonOperator(
         task_id='upload_to_s3',
         python_callable=upload_processed_jobs_to_s3,
     )
 
-    [ingest_usajobs_task, ingest_adzuna_task] >> clean_task >> skills_task >> s3_task
+    [ingest_usajobs_task, ingest_adzuna_task] >> clean_task >> skills_task >> llm_skills_task >> s3_task
