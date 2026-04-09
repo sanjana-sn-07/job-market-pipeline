@@ -56,7 +56,7 @@ st.divider()
 # ── Top skills bar chart ───────────────────────────────────────────────────────
 st.subheader("🔥 Top In-Demand Skills (Keyword Extraction)")
 
-top_n = st.slider("Show top N skills", min_value=5, max_value=30, value=15)
+top_n = st.slider("Show top N skills", min_value=5, max_value=20, value=15)
 
 top_skills_df = run_query(f"""
     SELECT skill, COUNT(*) AS job_count
@@ -72,7 +72,7 @@ fig1 = px.bar(
     x="job_count", y="skill",
     orientation="h",
     color="job_count",
-    color_continuous_scale="Blues",
+    color_continuous_scale="Greens",
     labels={"job_count": "Job Count", "skill": "Skill"},
     title=f"Top {top_n} Most In-Demand Skills"
 )
@@ -174,6 +174,45 @@ with col_b:
                   color_discrete_sequence=px.colors.qualitative.Pastel)
     fig5.update_layout(showlegend=False)
     st.plotly_chart(fig5, use_container_width=True)
+
+st.divider()
+
+# ── Prophet Forecast ───────────────────────────────────────────────────────────
+st.subheader("🔮 6-Month Skill Demand Forecast (Prophet ML Model)")
+st.caption("Historical data shown as solid lines · Forecast shown as dashed lines with confidence band")
+
+forecast_df = run_query("""
+    SELECT skill, ds, yhat, yhat_lower, yhat_upper, is_forecast
+    FROM skill_forecasts
+    ORDER BY ds
+""")
+
+if not forecast_df.empty:
+    forecast_skills = forecast_df["skill"].unique().tolist()
+    selected_forecast = st.multiselect(
+        "Select skills to forecast",
+        options=forecast_skills,
+        default=forecast_skills[:5]
+    )
+
+    if selected_forecast:
+        plot_df = forecast_df[forecast_df["skill"].isin(selected_forecast)].copy()
+        plot_df["type"] = plot_df["is_forecast"].map({True: "Forecast", False: "Actual"})
+        plot_df["label"] = plot_df["skill"] + " (" + plot_df["type"] + ")"
+
+        fig6 = px.line(
+            plot_df,
+            x="ds", y="yhat",
+            color="skill",
+            line_dash="type",
+            line_dash_map={"Actual": "solid", "Forecast": "dash"},
+            labels={"ds": "Week", "yhat": "Predicted Job Count", "skill": "Skill", "type": ""},
+            title="Skill Demand Forecast — Next 6 Months"
+        )
+        st.plotly_chart(fig6, use_container_width=True)
+        st.caption("⚠️ Forecast accuracy improves as more weekly data is collected. Currently based on ~4 weeks of data.")
+else:
+    st.info("No forecast data yet. Run `python forecast/forecast.py` to generate forecasts.")
 
 st.divider()
 
