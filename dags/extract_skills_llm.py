@@ -1,15 +1,34 @@
-import psycopg2
-import logging
 import os
-import json
-from openai import OpenAI
-from rds_config import RDS_CONFIG
 
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
+
+import psycopg2
+import logging
+import json
+import boto3
+from openai import OpenAI
+from rds_config import RDS_CONFIG
+
+
+def get_openai_key():
+    # try Secrets Manager first, fall back to env var
+    try:
+        client = boto3.client(
+            "secretsmanager",
+            region_name="us-east-1",
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+        )
+        response = client.get_secret_value(SecretId="job-market/openai")
+        secret = json.loads(response["SecretString"])
+        return secret.get("OPENAI_API_KEY", "")
+    except Exception as e:
+        logger.warning(f"Could not fetch from Secrets Manager, using env var: {e}")
+        return os.environ.get("OPENAI_API_KEY", "")
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +42,7 @@ DB_CONFIG = {
 
 CONFIGS = [DB_CONFIG, RDS_CONFIG]
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+client = OpenAI(api_key=get_openai_key())
 
 SYSTEM_PROMPT = """You are a technical recruiter expert. Extract all technical skills, tools, 
 technologies, and programming languages mentioned in the job description.
@@ -131,13 +150,18 @@ def extract_llm_skills_and_store(batch_size=20):
 
     total_skills = 0
     for job_id, description, source in jobs:
+        logger.debug(f"Job {job_id} description preview: {(description or '')[:200]}")
         skills = extract_skills_with_llm(description, job_id)
         logger.info(f"Job {job_id}: extracted {len(skills)} skills — {skills}")
 
+        # Always mark as attempted (even 0 skills) so we don't re-process forever
+        skills_to_insert = skills if skills else ["__processed__"]
+
         for config in CONFIGS:
             try:
-                inserted = insert_llm_skills(job_id, skills, source, config)
-                total_skills += inserted
+                inserted = insert_llm_skills(job_id, skills_to_insert, source, config)
+                if skills:
+                    total_skills += inserted
             except Exception as e:
                 logger.warning(f"Skipping database {config.get('host', 'unknown')}: {e}")
 
