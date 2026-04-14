@@ -88,6 +88,15 @@ Both ingestion tasks run in parallel. Clean and extract only run after both sour
 
 ---
 
+## Live Dashboards
+
+| Dashboard | Link |
+|---|---|
+| 📊 Tableau Public | [View Dashboard](https://public.tableau.com/app/profile/sanjana.sringari.nataraju/viz/JobMarketAnalyticsDashboardPoweredbyAirflowdbtProphetML/Dashboard1) |
+| 🖥️ Streamlit | Run locally (see setup below) |
+
+---
+
 ## Setup
 
 ### Prerequisites
@@ -139,17 +148,13 @@ pytest tests/ -v
 
 ## Status
 
-Active development — April 2026
+✅ Complete — April 2026
 
-**Completed:**
 - Dual-source ingestion pipeline (USAJobs + Adzuna)
-- Full Medallion Architecture with dbt
-- AWS S3 + RDS cloud integration
-- Keyword-based skill extraction
-- 43 automated tests + GitHub Actions CI
-
-**In progress:**
-- OpenAI LLM skill extraction
-- Streamlit dashboard
-- Prophet forecasting model
-- Tableau Public version
+- Full Medallion Architecture with dbt (5 models, 18 tests)
+- AWS S3 + RDS cloud integration + AWS Secrets Manager
+- Keyword-based + LLM (GPT-4o-mini) skill extraction
+- Facebook Prophet 6-month forecasting model
+- Streamlit interactive dashboard
+- Tableau Public dashboard (live URL above)
+- 43 automated tests + GitHub Actions CI/CD
