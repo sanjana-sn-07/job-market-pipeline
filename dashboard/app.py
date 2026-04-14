@@ -59,11 +59,11 @@ st.subheader("🔥 Top In-Demand Skills (Keyword Extraction)")
 top_n = st.slider("Show top N skills", min_value=5, max_value=20, value=15)
 
 top_skills_df = run_query(f"""
-    SELECT skill, COUNT(*) AS job_count
+    SELECT skill, COUNT(DISTINCT job_id) AS job_count
     FROM job_skills
     WHERE skill != '__processed__'
     GROUP BY skill
-    ORDER BY job_count DESC
+    ORDER BY job_count DESC, skill ASC
     LIMIT {top_n}
 """)
 
@@ -83,11 +83,11 @@ st.plotly_chart(fig1, use_container_width=True)
 st.subheader("🤖 Top Skills (LLM Extraction via GPT-4o-mini)")
 
 llm_top_df = run_query(f"""
-    SELECT skill, COUNT(*) AS job_count
+    SELECT skill, COUNT(DISTINCT job_id) AS job_count
     FROM llm_extracted_skills
     WHERE skill != '__processed__'
     GROUP BY skill
-    ORDER BY job_count DESC
+    ORDER BY job_count DESC, skill ASC
     LIMIT {top_n}
 """)
 

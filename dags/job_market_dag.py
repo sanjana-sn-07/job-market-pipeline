@@ -73,4 +73,15 @@ with DAG(
         python_callable=upload_processed_jobs_to_s3,
     )
 
-    [ingest_usajobs_task, ingest_adzuna_task] >> clean_task >> skills_task >> llm_skills_task >> s3_task
+    def run_forecast_task():
+        import sys
+        sys.path.insert(0, '/opt/airflow/forecast')
+        from forecast import run_forecast
+        run_forecast()
+
+    forecast_task = PythonOperator(
+        task_id='run_forecast',
+        python_callable=run_forecast_task,
+    )
+
+    [ingest_usajobs_task, ingest_adzuna_task] >> clean_task >> skills_task >> llm_skills_task >> s3_task >> forecast_task
