@@ -8,28 +8,7 @@ An end-to-end data engineering pipeline that ingests thousands of tech job posti
 
 ## Architecture
 
-```
-USAJobs API + Adzuna API
-         │
-         ▼
-   Apache Airflow (orchestration)
-         │
-    ┌────┴────────────────────┐
-    ▼                         ▼
-raw_jobs (Bronze)         AWS S3
-    │                   (daily backup)
-    ▼
-processed_jobs (Silver)
-    │
-    ▼
-job_skills (Silver)
-    │
-    ▼
-mart_skill_trends (Gold) ──→ AWS RDS (production)
-    │
-    ▼
-Streamlit Dashboard + Tableau Public
-```
+![Pipeline Architecture](docs/architecture.png)
 
 ---
 
