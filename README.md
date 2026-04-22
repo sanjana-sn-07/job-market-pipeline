@@ -4,6 +4,7 @@
 
 An end-to-end data engineering pipeline that ingests thousands of tech job postings daily from multiple APIs, transforms them through a Medallion Architecture using dbt, extracts required skills using keyword matching and LLM enrichment, and serves insights via an interactive Streamlit dashboard with 6-month skill demand forecasting.
 
+📹 **Demo:** [Watch Loom walkthrough](https://loom.com/share/6e23d87debfd44d99df5e17e2c725b44)
 📝 **Blog post:** [How I Built a Job Market Analytics Pipeline with Airflow, dbt, GPT-4o-mini, and Prophet](https://medium.com/@sanjana.sn.07/how-i-built-a-job-market-analytics-pipeline-with-airflow-dbt-gpt-4o-mini-and-prophet-d4c7e8c12253)
 
 ---
