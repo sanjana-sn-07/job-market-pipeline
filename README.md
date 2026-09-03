@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/sanjana-sn-07/job-market-pipeline/actions/workflows/ci.yml/badge.svg)
 
-An end-to-end data engineering pipeline that ingests thousands of tech job postings daily from multiple APIs, transforms them through a Medallion Architecture using dbt, extracts required skills using keyword matching and LLM enrichment, and serves insights via an interactive Streamlit dashboard with 6-month skill demand forecasting.
+An end-to-end data engineering pipeline that ingests up to 100 tech job postings daily from two APIs (USAJobs, Adzuna), transforms them through a Medallion Architecture using dbt, extracts required skills using keyword matching and LLM enrichment, and serves insights via an interactive Streamlit dashboard with 6-month skill demand forecasting.
 
 📹 **Demo:** [Watch Loom walkthrough](https://loom.com/share/6e23d87debfd44d99df5e17e2c725b44)
 📝 **Blog post:** [How I Built a Job Market Analytics Pipeline with Airflow, dbt, GPT-4o-mini, and Prophet](https://medium.com/@sanjana.sn.07/how-i-built-a-job-market-analytics-pipeline-with-airflow-dbt-gpt-4o-mini-and-prophet-d4c7e8c12253)
@@ -36,7 +36,7 @@ An end-to-end data engineering pipeline that ingests thousands of tech job posti
 - **Dual-source ingestion** — pulls job postings daily from USAJobs (government) and Adzuna (private sector) APIs
 - **Medallion Architecture** — Bronze (raw) → Silver (cleaned) → Gold (aggregated) data layers
 - **dbt transformation pipeline** — 4 models with full lineage tracking and 18 automated data quality tests
-- **Keyword skill extraction** — regex-based extraction of 40+ skills from job descriptions
+- **Keyword skill extraction** — regex-based extraction of 41 skills from job descriptions
 - **LLM skill extraction** — OpenAI GPT-4o enrichment to catch skills missed by keyword matching
 - **Government vs private sector comparison** — side-by-side skill demand analysis across data sources
 - **6-month forecasting** — Facebook Prophet ML model predicts which skills will be most in demand
@@ -67,6 +67,7 @@ Both ingestion tasks run in parallel. Clean and extract only run after both sour
 | `int_jobs_cleaned` | Intermediate | View | Adds seniority level, work type, salary flags |
 | `int_skills_extracted` | Intermediate | View | Joins skills with job context |
 | `mart_skill_trends` | Mart | Table | Weekly skill counts ranked by frequency |
+| `mart_llm_vs_keyword_skills` | Mart | Table | Compares LLM vs keyword extraction coverage |
 
 ---
 
