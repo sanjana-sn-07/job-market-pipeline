@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
 from datetime import datetime, timedelta
 from ingest import pull_from_usajobs, insert_jobs
 from ingest_adzuna import pull_from_adzuna, insert_adzuna_jobs
@@ -79,9 +80,14 @@ with DAG(
         from forecast import run_forecast
         run_forecast()
 
+    dbt_task = BashOperator(
+        task_id='run_dbt',
+        bash_command='cd /opt/airflow/job_market_dbt && dbt run --profiles-dir /opt/airflow/job_market_dbt',
+    )
+
     forecast_task = PythonOperator(
         task_id='run_forecast',
         python_callable=run_forecast_task,
     )
 
-    [ingest_usajobs_task, ingest_adzuna_task] >> clean_task >> skills_task >> llm_skills_task >> s3_task >> forecast_task
+    [ingest_usajobs_task, ingest_adzuna_task] >> clean_task >> skills_task >> llm_skills_task >> s3_task >> dbt_task >> forecast_task
