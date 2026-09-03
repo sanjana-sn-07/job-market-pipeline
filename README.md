@@ -120,10 +120,23 @@ published on host port 5433; inside the Airflow containers docker-compose suppli
 
 ### Run Locally
 ```bash
-docker-compose up -d
+docker compose build    # first run only, or after changing requirements-*.txt
+docker compose up -d
 # Access Airflow UI at http://localhost:8080
 # Username: airflow | Password: airflow
 ```
+
+The stack runs a **custom Airflow image** (`Dockerfile`) rather than the stock one, because
+dependencies pip-installed at container start were slow and non-deterministic — and could not
+install the pinned dbt version at all, since `apache/airflow:2.8.0` defaults to Python 3.8 while
+`dbt-core` 1.11 requires Python ≥ 3.9. The image pins the same Airflow version on the
+`python3.11` variant, so no metadata database migration is needed.
+
+dbt is installed into an **isolated virtualenv** at `/opt/dbt-venv`, and the DAG calls
+`/opt/dbt-venv/bin/dbt` by absolute path. dbt and Airflow share transitive dependencies
+(Jinja2, click, protobuf) with incompatible pins, so separate environments mean neither can
+break the other. Dependencies are split across `requirements-airflow.txt` (imported by the
+PythonOperator tasks) and `requirements-dbt.txt` (pinned to match local development).
 
 ### Run dbt
 The DAG runs dbt automatically as the `run_dbt` task. To run it by hand:

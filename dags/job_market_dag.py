@@ -83,13 +83,20 @@ with DAG(
     # `dbt build` runs seeds, models and tests together in dependency order, so
     # a failing test blocks the models downstream of it rather than only being
     # reported after every model has already been rebuilt.
+    #
+    # dbt is called by absolute path because it lives in an isolated virtualenv
+    # in the image -- its dependency pins conflict with Airflow's, so the two
+    # deliberately do not share an environment (see Dockerfile).
+    #
     # target-path and log-path point at /tmp because the dbt project is a host
-    # bind mount owned by the host user, and the container runs as UID 50000.
+    # bind mount owned by the host user, while the container runs as a
+    # different UID and cannot write into it.
     dbt_task = BashOperator(
         task_id='run_dbt',
         bash_command=(
             'cd /opt/airflow/job_market_dbt && '
-            'dbt build --profiles-dir /opt/airflow/job_market_dbt '
+            '/opt/dbt-venv/bin/dbt build '
+            '--profiles-dir /opt/airflow/job_market_dbt '
             '--target-path /tmp/dbt_target --log-path /tmp/dbt_logs'
         ),
     )

@@ -49,8 +49,11 @@ x-airflow-common:
   # In order to add custom dependencies or upgrade provider packages you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.8.0}
-  # build: .
+  # Built from the local Dockerfile so dependencies are baked in and pinned,
+  # rather than pip-installed on every container start. Rebuild with:
+  #   docker compose build
+  image: ${AIRFLOW_IMAGE_NAME:-job-market-pipeline-airflow:2.8.0-py311}
+  build: .
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -85,9 +88,11 @@ x-airflow-common:
     RDS_USER: ${RDS_USER}
     RDS_PASSWORD: ${RDS_PASSWORD}
     OPENAI_API_KEY: ${OPENAI_API_KEY}
-    # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
-    # for other purpose (development, test and especially production usage) build/extend Airflow image.
-    _PIP_ADDITIONAL_REQUIREMENTS: openai boto3 python-dotenv prophet dbt-postgres
+    # Intentionally empty: every dependency is baked into the image (see
+    # Dockerfile, requirements-airflow.txt, requirements-dbt.txt). Installing at
+    # container start was slow, non-deterministic, and could not install the
+    # pinned dbt version on the stock image's Python 3.8.
+    _PIP_ADDITIONAL_REQUIREMENTS: ''
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/forecast:/opt/airflow/forecast

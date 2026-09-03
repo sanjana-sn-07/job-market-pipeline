@@ -1,0 +1,7 @@
+# dbt, installed into the isolated /opt/dbt-venv (see Dockerfile).
+# Fully pinned, including the adapter internals, so a rebuild produces the same
+# dbt that generated the 5 models / 1 seed / 23 tests locally.
+dbt-core==1.11.7
+dbt-postgres==1.10.0
+dbt-adapters==1.22.9
+dbt-common==1.37.3
