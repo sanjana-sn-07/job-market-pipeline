@@ -1,0 +1,33 @@
+# dbt connection profiles.
+#
+# Values come from environment variables so this file is safe to commit — no
+# credentials live here. The defaults make `dbt run` work from a laptop shell
+# (local Postgres published on host port 5433); inside the Airflow containers
+# docker-compose supplies DB_HOST=project-db and DB_PORT=5432, which is the
+# Docker service name rather than localhost.
+#
+# Local:      dbt run
+# Production: dbt run --target prod
+
+job_market_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'localhost') }}"
+      port: "{{ env_var('DB_PORT', '5433') | int }}"
+      dbname: "{{ env_var('DB_NAME', 'job_market') }}"
+      user: "{{ env_var('DB_USER', 'pipeline_user') }}"
+      pass: "{{ env_var('DB_PASSWORD', 'pipeline_pass') }}"
+      schema: public
+      threads: 4
+
+    prod:
+      type: postgres
+      host: "{{ env_var('RDS_HOST') }}"
+      port: "{{ env_var('RDS_PORT', '5432') | int }}"
+      dbname: "{{ env_var('RDS_NAME', 'postgres') }}"
+      user: "{{ env_var('RDS_USER') }}"
+      pass: "{{ env_var('RDS_PASSWORD') }}"
+      schema: public
+      threads: 4

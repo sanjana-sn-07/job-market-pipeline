@@ -45,10 +45,14 @@ def run_forecast(top_n=10, periods=26):
     conn = psycopg2.connect(**DB_CONFIG)
     create_forecast_table(conn)
 
-    # Load all historical weekly data from dbt gold table
+    # Load all historical weekly data from dbt gold table.
+    # mart_skill_trends is grained on (skill, data_source, week_start), so a skill
+    # found in both USAJobs and Adzuna has two rows per week. Sum across sources
+    # to get one point per skill per week — Prophet needs a unique ds per series.
     df = pd.read_sql("""
-        SELECT week_start AS ds, skill, job_count AS y
+        SELECT week_start AS ds, skill, SUM(job_count) AS y
         FROM mart_skill_trends
+        GROUP BY week_start, skill
         ORDER BY week_start
     """, conn)
 

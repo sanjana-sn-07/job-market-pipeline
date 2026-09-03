@@ -26,9 +26,10 @@ DB_CONFIG = {
 
 
 @st.cache_data(ttl=300)
-def run_query(sql):
+def run_query(sql, params=None):
+    # params are bound by psycopg2, never string-formatted into the SQL
     conn = psycopg2.connect(**DB_CONFIG)
-    df = pd.read_sql(sql, conn)
+    df = pd.read_sql(sql, conn, params=params)
     conn.close()
     return df
 
@@ -58,14 +59,14 @@ st.subheader("🔥 Top In-Demand Skills (Keyword Extraction)")
 
 top_n = st.slider("Show top N skills", min_value=5, max_value=20, value=15)
 
-top_skills_df = run_query(f"""
+top_skills_df = run_query("""
     SELECT skill, COUNT(DISTINCT job_id) AS job_count
     FROM job_skills
     WHERE skill != '__processed__'
     GROUP BY skill
     ORDER BY job_count DESC, skill ASC
-    LIMIT {top_n}
-""")
+    LIMIT %s
+""", (top_n,))
 
 fig1 = px.bar(
     top_skills_df,
@@ -82,14 +83,14 @@ st.plotly_chart(fig1, use_container_width=True)
 # ── LLM skills bar chart ───────────────────────────────────────────────────────
 st.subheader("🤖 Top Skills (LLM Extraction via GPT-4o-mini)")
 
-llm_top_df = run_query(f"""
+llm_top_df = run_query("""
     SELECT skill, COUNT(DISTINCT job_id) AS job_count
     FROM llm_extracted_skills
     WHERE skill != '__processed__'
     GROUP BY skill
     ORDER BY job_count DESC, skill ASC
-    LIMIT {top_n}
-""")
+    LIMIT %s
+""", (top_n,))
 
 if not llm_top_df.empty:
     fig2 = px.bar(
@@ -222,15 +223,15 @@ st.subheader("🔍 Explore Recent Jobs")
 search_skill = st.text_input("Filter by skill (e.g. python, dbt, spark)", "")
 
 if search_skill:
-    jobs_df = run_query(f"""
+    jobs_df = run_query("""
         SELECT p.job_id, p.title_normalized AS title, p.company, p.location,
                p.source, p.ingested_at::date AS ingested_date
         FROM processed_jobs p
         JOIN job_skills js ON p.job_id = js.job_id
-        WHERE LOWER(js.skill) LIKE LOWER('%%{search_skill}%%')
+        WHERE LOWER(js.skill) LIKE LOWER(%s)
         ORDER BY p.ingested_at DESC
         LIMIT 50
-    """)
+    """, (f"%{search_skill}%",))
 else:
     jobs_df = run_query("""
         SELECT job_id, title_normalized AS title, company, location, source,

@@ -20,7 +20,7 @@ An end-to-end data engineering pipeline that ingests up to 100 tech job postings
 | Layer | Tools |
 |---|---|
 | Ingestion | Python, Apache Airflow, requests |
-| Transformation | dbt (4 models, 18 data quality tests) |
+| Transformation | dbt (5 models, 18 data quality tests) |
 | Storage | PostgreSQL, AWS S3, AWS RDS |
 | AI Layer | OpenAI API — LLM skill extraction from job descriptions |
 | ML Layer | Facebook Prophet — 6-month skill demand forecasting |
@@ -35,27 +35,31 @@ An end-to-end data engineering pipeline that ingests up to 100 tech job postings
 
 - **Dual-source ingestion** — pulls job postings daily from USAJobs (government) and Adzuna (private sector) APIs
 - **Medallion Architecture** — Bronze (raw) → Silver (cleaned) → Gold (aggregated) data layers
-- **dbt transformation pipeline** — 4 models with full lineage tracking and 18 automated data quality tests
-- **Keyword skill extraction** — regex-based extraction of 41 skills from job descriptions
-- **LLM skill extraction** — OpenAI GPT-4o enrichment to catch skills missed by keyword matching
+- **dbt transformation pipeline** — 5 models with full lineage tracking and 18 automated data quality tests, run as a task inside the Airflow DAG
+- **Keyword skill extraction** — regex-based extraction of 48 skills from job descriptions
+- **LLM skill extraction** — OpenAI GPT-4o-mini enrichment to catch skills missed by keyword matching
 - **Government vs private sector comparison** — side-by-side skill demand analysis across data sources
 - **6-month forecasting** — Facebook Prophet ML model predicts which skills will be most in demand
 - **Interactive dashboard** — Streamlit app with skill trend charts, filters, and forecast visualization
 - **Tableau Public version** — stakeholder-facing dashboard for DA role applications
 - **Cloud infrastructure** — AWS RDS for production database, AWS S3 for data lake storage
-- **Automated testing** — 43 total checks (25 pytest + 18 dbt) run on every code change via GitHub Actions
+- **Automated testing** — 43 total checks: 25 pytest unit tests run in GitHub Actions on every push, and 18 dbt data quality tests run daily inside the DAG after the transformation step
 
 ---
 
 ## Data Pipeline DAG
 
+8 tasks, `@daily`, `catchup=False`, 2 retries with a 5-minute delay:
+
 ```
 ingest_usajobs ──┐
-                 ├──→ clean_jobs → extract_skills → upload_to_s3
+                 ├──→ clean_jobs → extract_skills → extract_skills_llm → upload_to_s3 → run_dbt → run_forecast
 ingest_adzuna  ──┘
 ```
 
-Both ingestion tasks run in parallel. Clean and extract only run after both sources complete.
+Both ingestion tasks run in parallel and fan in — cleaning only starts once both sources succeed.
+`run_dbt` executes `dbt run && dbt test`, so the 18 data quality tests gate the forecast: if a test
+fails, the task fails and `run_forecast` never runs on bad data.
 
 ---
 
@@ -104,7 +108,13 @@ RDS_NAME=postgres
 RDS_USER=pipeline_user
 RDS_PASSWORD=your_password
 DB_PASSWORD=pipeline_pass
+OPENAI_API_KEY=your_openai_key   # only needed if not using AWS Secrets Manager
 ```
+
+`job_market_dbt/profiles.yml` is committed and reads these same environment variables via
+dbt's `env_var()`, so no credentials live in the repo. Its defaults point at the local Postgres
+published on host port 5433; inside the Airflow containers docker-compose supplies
+`DB_HOST=project-db` and `DB_PORT=5432`.
 
 ### Run Locally
 ```bash
@@ -114,11 +124,12 @@ docker-compose up -d
 ```
 
 ### Run dbt
+The DAG runs dbt automatically as the `run_dbt` task. To run it by hand:
 ```bash
 cd job_market_dbt
-dbt run          # local development
-dbt run --target prod   # AWS RDS
-dbt test         # run 18 data quality checks
+dbt run  --profiles-dir .                 # local development
+dbt test --profiles-dir .                 # 18 data quality checks
+dbt run  --profiles-dir . --target prod   # AWS RDS
 ```
 
 ### Run Tests
@@ -134,6 +145,7 @@ pytest tests/ -v
 ✅ Complete — April 2026
 
 - Dual-source ingestion pipeline (USAJobs + Adzuna)
+- 8-task Airflow DAG — ingestion through dbt transformation to forecasting, fully automated
 - Full Medallion Architecture with dbt (5 models, 18 tests)
 - AWS S3 + RDS cloud integration + AWS Secrets Manager
 - Keyword-based + LLM (GPT-4o-mini) skill extraction

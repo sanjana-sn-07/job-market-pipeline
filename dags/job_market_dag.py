@@ -80,9 +80,17 @@ with DAG(
         from forecast import run_forecast
         run_forecast()
 
+    # target-path and log-path point at /tmp because the dbt project is a host
+    # bind mount owned by the host user, and the container runs as UID 50000.
     dbt_task = BashOperator(
         task_id='run_dbt',
-        bash_command='cd /opt/airflow/job_market_dbt && dbt run --profiles-dir /opt/airflow/job_market_dbt',
+        bash_command=(
+            'cd /opt/airflow/job_market_dbt && '
+            'dbt run --profiles-dir /opt/airflow/job_market_dbt '
+            '--target-path /tmp/dbt_target --log-path /tmp/dbt_logs && '
+            'dbt test --profiles-dir /opt/airflow/job_market_dbt '
+            '--target-path /tmp/dbt_target --log-path /tmp/dbt_logs'
+        ),
     )
 
     forecast_task = PythonOperator(
