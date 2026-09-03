@@ -20,12 +20,12 @@ An end-to-end data engineering pipeline that ingests up to 100 tech job postings
 | Layer | Tools |
 |---|---|
 | Ingestion | Python, Apache Airflow, requests |
-| Transformation | dbt (5 models, 18 data quality tests) |
+| Transformation | dbt (5 models, 1 seed, 23 data quality tests) |
 | Storage | PostgreSQL, AWS S3, AWS RDS |
 | AI Layer | OpenAI API — LLM skill extraction from job descriptions |
 | ML Layer | Facebook Prophet — 6-month skill demand forecasting |
 | Dashboard | Streamlit, Tableau Public |
-| Testing | pytest (25 unit tests), dbt tests (18 data quality checks) |
+| Testing | pytest (25 unit tests), dbt tests (23 data quality checks) |
 | CI/CD | GitHub Actions — runs pytest on every push |
 | Infrastructure | Docker, Docker Compose, AWS (S3, RDS, EC2) |
 
@@ -35,7 +35,7 @@ An end-to-end data engineering pipeline that ingests up to 100 tech job postings
 
 - **Dual-source ingestion** — pulls job postings daily from USAJobs (government) and Adzuna (private sector) APIs
 - **Medallion Architecture** — Bronze (raw) → Silver (cleaned) → Gold (aggregated) data layers
-- **dbt transformation pipeline** — 5 models with full lineage tracking and 18 automated data quality tests, run as a task inside the Airflow DAG
+- **dbt transformation pipeline** — 5 models with full lineage tracking and 23 automated data quality tests, run as a `dbt build` task inside the Airflow DAG
 - **Keyword skill extraction** — regex-based extraction of 48 skills from job descriptions
 - **LLM skill extraction** — OpenAI GPT-4o-mini enrichment to catch skills missed by keyword matching
 - **Government vs private sector comparison** — side-by-side skill demand analysis across data sources
@@ -43,7 +43,7 @@ An end-to-end data engineering pipeline that ingests up to 100 tech job postings
 - **Interactive dashboard** — Streamlit app with skill trend charts, filters, and forecast visualization
 - **Tableau Public version** — stakeholder-facing dashboard for DA role applications
 - **Cloud infrastructure** — AWS RDS for production database, AWS S3 for data lake storage
-- **Automated testing** — 43 total checks: 25 pytest unit tests run in GitHub Actions on every push, and 18 dbt data quality tests run daily inside the DAG after the transformation step
+- **Automated testing** — 48 total checks: 25 pytest unit tests run in GitHub Actions on every push, and 23 dbt data quality tests run daily inside the DAG as part of `dbt build`
 
 ---
 
@@ -58,8 +58,9 @@ ingest_adzuna  ──┘
 ```
 
 Both ingestion tasks run in parallel and fan in — cleaning only starts once both sources succeed.
-`run_dbt` executes `dbt run && dbt test`, so the 18 data quality tests gate the forecast: if a test
-fails, the task fails and `run_forecast` never runs on bad data.
+`run_dbt` executes `dbt build`, which runs the seed, the models and the 23 data quality tests together in
+dependency order — so a failing test blocks the models downstream of it, the task fails, and
+`run_forecast` never runs on bad data.
 
 ---
 
@@ -71,7 +72,8 @@ fails, the task fails and `run_forecast` never runs on bad data.
 | `int_jobs_cleaned` | Intermediate | View | Adds seniority level, work type, salary flags |
 | `int_skills_extracted` | Intermediate | View | Joins skills with job context |
 | `mart_skill_trends` | Mart | Table | Weekly skill counts ranked by frequency |
-| `mart_llm_vs_keyword_skills` | Mart | Table | Compares LLM vs keyword extraction coverage |
+| `mart_llm_vs_keyword_skills` | Mart | Table | Compares LLM vs keyword extraction on a shared job population, with alias normalization |
+| `skill_aliases` | Seed | Table | Maps LLM skill variants onto canonical names (`apache spark` → `spark`) |
 
 ---
 
@@ -127,9 +129,9 @@ docker-compose up -d
 The DAG runs dbt automatically as the `run_dbt` task. To run it by hand:
 ```bash
 cd job_market_dbt
-dbt run  --profiles-dir .                 # local development
-dbt test --profiles-dir .                 # 18 data quality checks
-dbt run  --profiles-dir . --target prod   # AWS RDS
+dbt build --profiles-dir .                 # seed + 5 models + 23 tests, in dependency order
+dbt build --profiles-dir . --target prod   # same, against AWS RDS
+dbt test  --profiles-dir .                 # tests only
 ```
 
 ### Run Tests
@@ -146,10 +148,10 @@ pytest tests/ -v
 
 - Dual-source ingestion pipeline (USAJobs + Adzuna)
 - 8-task Airflow DAG — ingestion through dbt transformation to forecasting, fully automated
-- Full Medallion Architecture with dbt (5 models, 18 tests)
+- Full Medallion Architecture with dbt (5 models, 1 seed, 23 tests)
 - AWS S3 + RDS cloud integration + AWS Secrets Manager
 - Keyword-based + LLM (GPT-4o-mini) skill extraction
 - Facebook Prophet 6-month forecasting model
 - Streamlit interactive dashboard
 - Tableau Public dashboard (live URL above)
-- 43 automated tests + GitHub Actions CI/CD
+- 48 automated tests + GitHub Actions CI/CD

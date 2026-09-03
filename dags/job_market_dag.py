@@ -80,15 +80,16 @@ with DAG(
         from forecast import run_forecast
         run_forecast()
 
+    # `dbt build` runs seeds, models and tests together in dependency order, so
+    # a failing test blocks the models downstream of it rather than only being
+    # reported after every model has already been rebuilt.
     # target-path and log-path point at /tmp because the dbt project is a host
     # bind mount owned by the host user, and the container runs as UID 50000.
     dbt_task = BashOperator(
         task_id='run_dbt',
         bash_command=(
             'cd /opt/airflow/job_market_dbt && '
-            'dbt run --profiles-dir /opt/airflow/job_market_dbt '
-            '--target-path /tmp/dbt_target --log-path /tmp/dbt_logs && '
-            'dbt test --profiles-dir /opt/airflow/job_market_dbt '
+            'dbt build --profiles-dir /opt/airflow/job_market_dbt '
             '--target-path /tmp/dbt_target --log-path /tmp/dbt_logs'
         ),
     )

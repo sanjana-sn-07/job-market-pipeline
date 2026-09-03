@@ -23,3 +23,27 @@ models:
         description: "Rank of this skill within its week (1 = most mentioned)"
         tests:
           - not_null
+
+  - name: mart_llm_vs_keyword_skills
+    description: >
+      Keyword vs LLM extraction coverage, restricted to the jobs the LLM
+      actually attempted so both methods are counted over the same population.
+      Skills on both sides are mapped through the skill_aliases seed.
+    columns:
+      - name: skill
+        description: "Canonical skill name after alias mapping"
+        tests:
+          - not_null
+          - unique
+
+      - name: extraction_source
+        description: "Which method(s) found this skill: both, keyword only, or llm only"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["both", "keyword only", "llm only"]
+
+      - name: comparable_job_count
+        description: "Size of the shared job population these counts are drawn from"
+        tests:
+          - not_null

@@ -1,0 +1,44 @@
+alias,canonical_skill
+apache airflow,airflow
+apache spark,spark
+pyspark,spark
+apache kafka,kafka
+apache hadoop,hadoop
+apache flink,flink
+dbt core,dbt
+dbt cloud,dbt
+postgres,postgresql
+psql,postgresql
+amazon web services,aws
+google cloud platform,gcp
+google cloud,gcp
+microsoft azure,azure
+amazon s3,s3
+aws s3,s3
+amazon ec2,ec2
+aws ec2,ec2
+aws lambda,lambda
+amazon redshift,redshift
+big query,bigquery
+google bigquery,bigquery
+golang,go
+scikit learn,scikit-learn
+sklearn,scikit-learn
+tensor flow,tensorflow
+py torch,pytorch
+powerbi,power bi
+power-bi,power bi
+microsoft power bi,power bi
+tableau desktop,tableau
+k8s,kubernetes
+ml,machine learning
+machine-learning,machine learning
+deep-learning,deep learning
+large language models,llm
+large language model,llm
+llms,llm
+data pipelines,data pipeline
+data warehousing,data warehouse
+data-warehouse,data warehouse
+data-lake,data lake
+extract transform load,etl

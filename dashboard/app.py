@@ -82,6 +82,11 @@ st.plotly_chart(fig1, use_container_width=True)
 
 # ── LLM skills bar chart ───────────────────────────────────────────────────────
 st.subheader("🤖 Top Skills (LLM Extraction via GPT-4o-mini)")
+st.caption(
+    "⚠️ These two charts are not directly comparable — the keyword scanner runs over every ingested "
+    "posting, while LLM extraction is capped at a batch of Adzuna postings per run. For a like-for-like "
+    "comparison on a shared job population, see the `mart_llm_vs_keyword_skills` model."
+)
 
 llm_top_df = run_query("""
     SELECT skill, COUNT(DISTINCT job_id) AS job_count
