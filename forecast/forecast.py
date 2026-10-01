@@ -56,6 +56,17 @@ def run_forecast(top_n=10, periods=26):
         ORDER BY week_start
     """, conn)
 
+    observed_weeks = pd.read_sql("""
+    SELECT DISTINCT
+        date_trunc('week', ingested_at)::date AS ds
+    FROM processed_jobs
+    ORDER BY ds
+    """, conn)
+
+    observed_weeks["ds"] = pd.to_datetime(
+        observed_weeks["ds"]
+    )
+
     if df.empty:
         logger.error("No data in mart_skill_trends — run dbt first")
         conn.close()
@@ -78,9 +89,34 @@ def run_forecast(top_n=10, periods=26):
     cursor.close()
 
     for skill in top_skills:
-        skill_df = df[df["skill"] == skill][["ds", "y"]].copy()
-        skill_df["ds"] = pd.to_datetime(skill_df["ds"])
-        skill_df = skill_df.sort_values("ds")
+        skill_df = (
+            df[df["skill"] == skill][["ds", "y"]]
+            .copy()
+        )
+
+        skill_df["ds"] = pd.to_datetime(
+            skill_df["ds"]
+        )
+
+        skill_df = (
+            skill_df
+            .groupby("ds", as_index=False)["y"]
+            .sum()
+        )
+
+        # A missing skill count becomes zero only during weeks
+        # when the pipeline actually collected job postings.
+        skill_df = (
+            observed_weeks[["ds"]]
+            .merge(
+                skill_df,
+                on="ds",
+                how="left",
+            )
+            .sort_values("ds")
+        )
+
+        skill_df["y"] = skill_df["y"].fillna(0)
 
         if len(skill_df) < 2:
             logger.warning(f"Skipping {skill} — not enough data points")
@@ -95,7 +131,7 @@ def run_forecast(top_n=10, periods=26):
             )
             model.fit(skill_df)
 
-            future = model.make_future_dataframe(periods=periods, freq="W")
+            future = model.make_future_dataframe(periods=periods, freq="W-MON")
             forecast = model.predict(future)
 
             cursor = conn.cursor()

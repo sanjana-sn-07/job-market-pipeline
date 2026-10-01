@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import psycopg2
+import plotly.graph_objects as go
 
 try:
     from dotenv import load_dotenv
@@ -24,6 +25,8 @@ DB_CONFIG = {
     "password": os.environ.get("DB_PASSWORD", "pipeline_pass"),
 }
 
+DATABASE_TIMEZONE = os.environ.get("DATABASE_TIMEZONE", "UTC")
+DISPLAY_TIMEZONE = os.environ.get("DISPLAY_TIMEZONE", "America/Los_Angeles")
 
 @st.cache_data(ttl=300)
 def run_query(sql, params=None):
@@ -32,6 +35,11 @@ def run_query(sql, params=None):
     df = pd.read_sql(sql, conn, params=params)
     conn.close()
     return df
+
+def color_with_alpha(hex_color, alpha=0.14):
+    value = hex_color.lstrip("#")
+    r, g, b = (int(value[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r}, {g}, {b}, {alpha})"
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -83,9 +91,10 @@ st.plotly_chart(fig1, use_container_width=True)
 # ── LLM skills bar chart ───────────────────────────────────────────────────────
 st.subheader("🤖 Top Skills (LLM Extraction via GPT-4o-mini)")
 st.caption(
-    "⚠️ These two charts are not directly comparable — the keyword scanner runs over every ingested "
-    "posting, while LLM extraction is capped at a batch of Adzuna postings per run. For a like-for-like "
-    "comparison on a shared job population, see the `mart_llm_vs_keyword_skills` model."
+    "⚠️ These two charts are not directly comparable — keyword extraction covers the full processed "
+    "population, while LLM extraction intentionally processes a limited pending batch per database "
+    "per run across both USAJobs and Adzuna. For a like-for-like comparison on the same job population, "
+    "see the `mart_llm_vs_keyword_skills` model."
 )
 
 llm_top_df = run_query("""
@@ -118,12 +127,27 @@ st.divider()
 st.subheader("📈 Skill Trends Over Time")
 
 trend_df = run_query("""
-    SELECT week_start, skill, job_count, skill_rank
+    SELECT
+        week_start,
+        skill,
+        SUM(job_count) AS job_count
     FROM mart_skill_trends
-    ORDER BY week_start, skill_rank
+    GROUP BY week_start, skill
+    ORDER BY week_start, skill
+""")
+
+observed_weeks_df = run_query("""
+    SELECT DISTINCT date_trunc('week', ingested_at)::date AS week_start
+    FROM processed_jobs
+    ORDER BY week_start
 """)
 
 if not trend_df.empty:
+    trend_df["week_start"] = pd.to_datetime(trend_df["week_start"])
+    observed_weeks_df["week_start"] = pd.to_datetime(
+        observed_weeks_df["week_start"]
+    )
+
     top_skills_list = (
         trend_df.groupby("skill")["job_count"]
         .sum()
@@ -131,6 +155,7 @@ if not trend_df.empty:
         .head(10)
         .index.tolist()
     )
+
     selected_skills = st.multiselect(
         "Select skills to compare",
         options=trend_df["skill"].unique().tolist(),
@@ -138,18 +163,78 @@ if not trend_df.empty:
     )
 
     if selected_skills:
-        filtered = trend_df[trend_df["skill"].isin(selected_skills)]
+        filtered = trend_df[
+            trend_df["skill"].isin(selected_skills)
+        ].copy()
+
+        full_weeks = pd.date_range(
+            start=trend_df["week_start"].min(),
+            end=trend_df["week_start"].max(),
+            freq="W-MON",
+        )
+
+        observed_weeks = set(
+            observed_weeks_df["week_start"].dt.normalize()
+        )
+
+        weekly_matrix = (
+            filtered.pivot_table(
+                index="week_start",
+                columns="skill",
+                values="job_count",
+                aggfunc="sum",
+            )
+            .reindex(full_weeks)
+        )
+
+        observed_mask = weekly_matrix.index.normalize().isin(
+            observed_weeks
+        )
+
+        for skill in selected_skills:
+            weekly_matrix.loc[observed_mask, skill] = (
+                weekly_matrix.loc[observed_mask, skill]
+                .fillna(0)
+            )
+
+        plot_ready = (
+            weekly_matrix[selected_skills]
+            .rename_axis("week_start")
+            .reset_index()
+            .melt(
+                id_vars="week_start",
+                var_name="skill",
+                value_name="job_count",
+            )
+        )
+
         fig3 = px.line(
-            filtered,
-            x="week_start", y="job_count",
+            plot_ready,
+            x="week_start",
+            y="job_count",
             color="skill",
             markers=True,
-            labels={"week_start": "Week", "job_count": "Job Count", "skill": "Skill"},
-            title="Weekly Skill Demand Over Time"
+            labels={
+                "week_start": "Week",
+                "job_count": "Job Count",
+                "skill": "Skill",
+            },
+            title="Weekly Skill Demand Over Time",
         )
+
+        fig3.update_traces(connectgaps=False)
+
         st.plotly_chart(fig3, use_container_width=True)
+
+        st.caption(
+            "Weeks with no pipeline ingestion are shown as gaps. "
+            "A zero is used only when jobs were collected that week "
+            "but the selected skill was not found."
+        )
 else:
-    st.info("No trend data yet. Run dbt models to populate mart_skill_trends.")
+    st.info(
+        "No trend data yet. Run dbt models to populate mart_skill_trends."
+    )
 
 st.divider()
 
@@ -175,9 +260,17 @@ with col_b:
         GROUP BY seniority_level
         ORDER BY job_count DESC
     """)
-    fig5 = px.bar(seniority_df, x="seniority_level", y="job_count",
-                  color="seniority_level",
-                  color_discrete_sequence=px.colors.qualitative.Pastel)
+    fig5 = px.bar(
+    seniority_df,
+    x="seniority_level",
+    y="job_count",
+    color="seniority_level",
+    color_discrete_sequence=px.colors.qualitative.Pastel,
+    labels={
+        "seniority_level": "Seniority Level",
+        "job_count": "Job Count",
+    },
+    )
     fig5.update_layout(showlegend=False)
     st.plotly_chart(fig5, use_container_width=True)
 
@@ -194,29 +287,186 @@ forecast_df = run_query("""
 """)
 
 if not forecast_df.empty:
-    forecast_skills = forecast_df["skill"].unique().tolist()
-    selected_forecast = st.multiselect(
-        "Select skills to forecast",
-        options=forecast_skills,
-        default=forecast_skills[:5]
+    forecast_df["ds"] = pd.to_datetime(forecast_df["ds"])
+
+forecast_skills = forecast_df["skill"].unique().tolist()
+
+selected_forecast = st.multiselect(
+    "Select skills to forecast",
+    options=forecast_skills,
+    default=forecast_skills[:5]
+)
+
+if selected_forecast:
+    plot_df = (
+        forecast_df[
+            forecast_df["skill"].isin(selected_forecast)
+        ]
+        .copy()
+        .sort_values(["skill", "ds"])
     )
 
-    if selected_forecast:
-        plot_df = forecast_df[forecast_df["skill"].isin(selected_forecast)].copy()
-        plot_df["type"] = plot_df["is_forecast"].map({True: "Forecast", False: "Actual"})
-        plot_df["label"] = plot_df["skill"] + " (" + plot_df["type"] + ")"
+    fig6 = go.Figure()
 
-        fig6 = px.line(
-            plot_df,
-            x="ds", y="yhat",
-            color="skill",
-            line_dash="type",
-            line_dash_map={"Actual": "solid", "Forecast": "dash"},
-            labels={"ds": "Week", "yhat": "Predicted Job Count", "skill": "Skill", "type": ""},
-            title="Skill Demand Forecast — Next 6 Months"
+    palette = px.colors.qualitative.Plotly
+
+    for i, skill in enumerate(selected_forecast):
+        skill_data = plot_df[
+            plot_df["skill"] == skill
+        ]
+
+        actual = skill_data[
+            ~skill_data["is_forecast"]
+        ].copy()
+
+        future = skill_data[
+            skill_data["is_forecast"]
+        ].copy()
+
+        color = palette[i % len(palette)]
+
+        # Historical observations
+        if not actual.empty:
+            actual = actual.sort_values("ds")
+
+            # Build a complete weekly calendar so periods with no pipeline
+            # ingestion appear as gaps instead of misleading straight lines.
+            full_actual_weeks = pd.date_range(
+                start=actual["ds"].min(),
+                end=actual["ds"].max(),
+                freq="W-MON",
+            )
+
+            actual_plot = (
+                actual.set_index("ds")[["yhat"]]
+                .reindex(full_actual_weeks)
+            )
+
+            fig6.add_trace(
+                go.Scatter(
+                    x=actual_plot.index,
+                    y=actual_plot["yhat"],
+                    mode="lines+markers",
+                    name=f"{skill}, Actual",
+                    line=dict(
+                        color=color,
+                        width=2,
+                    ),
+                    marker=dict(size=6),
+                    connectgaps=False,
+                )
+            )
+
+        if not future.empty:
+
+            # Upper confidence bound
+            fig6.add_trace(
+                go.Scatter(
+                    x=future["ds"],
+                    y=future["yhat_upper"],
+                    mode="lines",
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
+            )
+
+            # Lower bound + shaded area
+            fig6.add_trace(
+                go.Scatter(
+                    x=future["ds"],
+                    y=future["yhat_lower"],
+                    mode="lines",
+                    line=dict(width=0),
+                    fill="tonexty",
+                    fillcolor=color_with_alpha(color),
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
+            )
+
+            forecast_line = future[
+                ["ds", "yhat"]
+            ].copy()
+
+            # Connect historical series to forecast
+            if not actual.empty:
+                last_actual = (
+                    actual.sort_values("ds")
+                    .iloc[-1]
+                )
+
+                connector = pd.DataFrame({
+                    "ds": [last_actual["ds"]],
+                    "yhat": [last_actual["yhat"]],
+                })
+
+                forecast_line = pd.concat(
+                    [connector, forecast_line],
+                    ignore_index=True,
+                )
+
+            fig6.add_trace(
+                go.Scatter(
+                    x=forecast_line["ds"],
+                    y=forecast_line["yhat"],
+                    mode="lines",
+                    name=f"{skill}, Forecast",
+                    line=dict(
+                        color=color,
+                        width=2,
+                        dash="dash",
+                    ),
+                )
+            )
+
+    fig6.update_layout(
+        title="Skill Demand Forecast — Next 6 Months",
+        xaxis_title="Week",
+        yaxis_title="Job Count",
+        legend_title_text="Skill / Series",
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(
+        fig6,
+        use_container_width=True,
+    )
+
+    actual_rows = plot_df[
+        ~plot_df["is_forecast"]
+    ]
+
+    history_counts = (
+        actual_rows.groupby("skill")
+        .size()
+    )
+
+    history_start = actual_rows["ds"].min()
+    history_end = actual_rows["ds"].max()
+
+    if not history_counts.empty:
+
+        if history_counts.min() == history_counts.max():
+            history_text = (
+                f"{int(history_counts.iloc[0])} "
+                "observed ingestion weeks"
+            )
+        else:
+            history_text = (
+                f"{int(history_counts.min())}–"
+                f"{int(history_counts.max())} "
+                "observed ingestion weeks"
+                "across the selected skills"
+            )
+
+        st.caption(
+            f"⚠️ Forecasts are based on {history_text}, "
+            f"from {history_start:%b %Y} to {history_end:%b %Y}. "
+            "Shaded areas show Prophet uncertainty intervals. "
+            "Forecast reliability should improve as more "
+            "historical data is collected."
         )
-        st.plotly_chart(fig6, use_container_width=True)
-        st.caption("⚠️ Forecast accuracy improves as more weekly data is collected. Currently based on ~4 weeks of data.")
 else:
     st.info("No forecast data yet. Run `python forecast/forecast.py` to generate forecasts.")
 
@@ -229,22 +479,65 @@ search_skill = st.text_input("Filter by skill (e.g. python, dbt, spark)", "")
 
 if search_skill:
     jobs_df = run_query("""
-        SELECT p.job_id, p.title_normalized AS title, p.company, p.location,
-               p.source, p.ingested_at::date AS ingested_date
+        SELECT
+            p.job_id,
+            p.title_normalized AS title,
+            p.company,
+            p.location,
+            p.source,
+            (
+                p.ingested_at
+                AT TIME ZONE %s
+                AT TIME ZONE %s
+            ) AS ingested_at
         FROM processed_jobs p
-        JOIN job_skills js ON p.job_id = js.job_id
-        WHERE LOWER(js.skill) LIKE LOWER(%s)
+        WHERE EXISTS (
+            SELECT 1
+            FROM job_skills js
+            WHERE js.job_id = p.job_id
+              AND LOWER(js.skill) LIKE LOWER(%s)
+        )
         ORDER BY p.ingested_at DESC
         LIMIT 50
-    """, (f"%{search_skill}%",))
+    """, (
+        DATABASE_TIMEZONE,
+        DISPLAY_TIMEZONE,
+        f"%{search_skill}%"
+    ))
+
 else:
     jobs_df = run_query("""
-        SELECT job_id, title_normalized AS title, company, location, source,
-               ingested_at::date AS ingested_date
+        SELECT
+            job_id,
+            title_normalized AS title,
+            company,
+            location,
+            source,
+            (
+                ingested_at
+                AT TIME ZONE %s
+                AT TIME ZONE %s
+            ) AS ingested_at
         FROM processed_jobs
         ORDER BY ingested_at DESC
         LIMIT 50
-    """)
+    """, (
+        DATABASE_TIMEZONE,
+        DISPLAY_TIMEZONE,
+    ))
 
-st.dataframe(jobs_df, use_container_width=True)
-st.caption(f"Showing {len(jobs_df)} jobs")
+if "ingested_at" in jobs_df.columns:
+    jobs_df["ingested_at"] = (
+        pd.to_datetime(jobs_df["ingested_at"])
+        .dt.strftime("%Y-%m-%d %H:%M")
+    )
+
+st.dataframe(
+    jobs_df,
+    use_container_width=True,
+)
+
+st.caption(
+    f"Showing {len(jobs_df)} jobs · "
+    f"timestamps displayed in {DISPLAY_TIMEZONE}"
+)
