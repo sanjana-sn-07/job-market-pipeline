@@ -81,7 +81,7 @@ dependency order — so a failing test blocks the models downstream of it, the t
 
 | Dashboard | Link |
 |---|---|
-| 📊 Tableau Public | [View Dashboard](https://public.tableau.com/app/profile/sanjana.sringari.nataraju/viz/JobMarketAnalyticsDashboardPoweredbyAirflowdbtProphetML/Dashboard1) |
+| 📊 Tableau Public | [View Dashboard](https://public.tableau.com/app/profile/sanjana.sringari.nataraju/viz/Job_Market_Skills_Intelligence_twbx/JobMarketSkillsIntelligence) |
 | 🖥️ Streamlit | Run locally (see setup below) |
 
 ---

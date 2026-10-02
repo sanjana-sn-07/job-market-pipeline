@@ -91,10 +91,8 @@ st.plotly_chart(fig1, use_container_width=True)
 # ── LLM skills bar chart ───────────────────────────────────────────────────────
 st.subheader("🤖 Top Skills (LLM Extraction via GPT-4o-mini)")
 st.caption(
-    "⚠️ These two charts are not directly comparable — keyword extraction covers the full processed "
-    "population, while LLM extraction intentionally processes a limited pending batch per database "
-    "per run across both USAJobs and Adzuna. For a like-for-like comparison on the same job population, "
-    "see the `mart_llm_vs_keyword_skills` model."
+    "ℹ️ Keyword and LLM extraction currently cover different numbers of job postings, "
+    "so their raw counts should not be compared directly."
 )
 
 llm_top_df = run_query("""
